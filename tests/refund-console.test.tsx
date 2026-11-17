@@ -16,8 +16,9 @@ vi.mock("@/lib/copper/refund-console", async () => {
   const refunds = await import("@/lib/copper/refunds");
   return {
     loadRefundQueue: async () => ({
-      limitUsd: refunds.getAutoRefundLimit(),
-      refunds: refunds.listRefunds(),
+      limitUsd: await refunds.getAutoRefundLimit(),
+      refunds: await refunds.listRefunds(),
+      where: "memory",
     }),
     decideRefund: async (id: string, decision: "approved" | "rejected") =>
       refunds.decidePendingRefund(id, decision),

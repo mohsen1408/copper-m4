@@ -273,9 +273,11 @@ export function RefundConsole() {
       </Card>
 
       <p className="text-muted-foreground text-xs">
-        Demo data: made-up orders kept in memory, so they reset when the server
-        restarts. Try asking the chat: &quot;I want a refund on order 1001, my
-        email is sam@example.com&quot;.
+        {queue.where === "supabase"
+          ? "Data: the orders, refunds and settings tables in Supabase (made-up orders)."
+          : "Demo data: made-up orders kept in memory, so they reset when the server restarts."}{" "}
+        Try asking the chat: &quot;I want a refund on order 1001, my email is
+        sam@example.com&quot;.
       </p>
     </div>
   );

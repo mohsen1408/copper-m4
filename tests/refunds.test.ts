@@ -31,21 +31,21 @@ const order = (overrides: Partial<Order> = {}): Order => ({
 beforeEach(() => resetRefundStore(NOW));
 
 describe("decideRefund: the rules", () => {
-  it("approves a refund at or under the limit automatically", () => {
+  it("approves a refund at or under the limit automatically", async () => {
     expect(decideRefund(order({ amount_usd: 50 }), [], 50, NOW)).toEqual({
       allowed: true,
       status: "approved",
     });
   });
 
-  it("sends a refund over the limit to a person", () => {
+  it("sends a refund over the limit to a person", async () => {
     expect(decideRefund(order({ amount_usd: 50.01 }), [], 50, NOW)).toEqual({
       allowed: true,
       status: "pending",
     });
   });
 
-  it("refuses a device after 30 days and an annual plan after 14", () => {
+  it("refuses a device after 30 days and an annual plan after 14", async () => {
     const oldDevice = order({
       ordered_at: new Date(NOW - 31 * DAY).toISOString(),
     });
@@ -64,7 +64,7 @@ describe("decideRefund: the rules", () => {
     });
   });
 
-  it("never refunds a monthly Copper Plus plan for a partial month", () => {
+  it("never refunds a monthly Copper Plus plan for a partial month", async () => {
     const monthly = order({ kind: "plus_monthly", amount_usd: 7.99 });
     expect(decideRefund(monthly, [], 50, NOW)).toMatchObject({
       allowed: false,
@@ -74,70 +74,70 @@ describe("decideRefund: the rules", () => {
 });
 
 describe("requestRefund and the data", () => {
-  it("reads the limit from settings ($50)", () => {
-    expect(getAutoRefundLimit()).toBe(50);
+  it("reads the limit from settings ($50)", async () => {
+    expect(await getAutoRefundLimit()).toBe(50);
   });
 
-  it("approves order 1001 ($24) automatically and records it", () => {
-    const result = requestRefund(
+  it("approves order 1001 ($24) automatically and records it", async () => {
+    const result = await requestRefund(
       { email: "Sam@Example.com", orderId: "#1001", reason: "Broken" },
       NOW,
     );
     expect(result).toMatchObject({ status: "approved", amountUsd: 24 });
-    expect(listRefunds()[0]).toMatchObject({
+    expect((await listRefunds())[0]).toMatchObject({
       order_id: "1001",
       status: "approved",
       decided_by: "auto",
     });
   });
 
-  it("puts order 1002 ($149) in the pending queue", () => {
+  it("puts order 1002 ($149) in the pending queue", async () => {
     expect(
-      requestRefund(
+      await requestRefund(
         { email: "sam@example.com", orderId: "1002", reason: "Too big" },
         NOW,
       ),
     ).toMatchObject({ status: "pending" });
   });
 
-  it("refuses a second refund on the same order", () => {
-    const ask = () =>
-      requestRefund(
+  it("refuses a second refund on the same order", async () => {
+    const ask = async () =>
+      await requestRefund(
         { email: "sam@example.com", orderId: "1001", reason: "x" },
         NOW,
       );
-    ask();
-    expect(ask()).toMatchObject({
+    await ask();
+    expect(await ask()).toMatchObject({
       status: "refused",
       message: expect.stringMatching(/already has a refund/),
     });
   });
 
-  it("refuses an order that belongs to someone else", () => {
+  it("refuses an order that belongs to someone else", async () => {
     expect(
-      requestRefund(
+      await requestRefund(
         { email: "riley@example.com", orderId: "1001", reason: "x" },
         NOW,
       ),
     ).toMatchObject({ status: "refused" });
   });
 
-  it("refuses orders outside their window (1004, 1005) and monthly plans (1006)", () => {
+  it("refuses orders outside their window (1004, 1005) and monthly plans (1006)", async () => {
     for (const [email, orderId] of [
       ["jordan@example.com", "1004"],
       ["riley@example.com", "1005"],
       ["riley@example.com", "1006"],
     ]) {
-      expect(requestRefund({ email, orderId, reason: "x" }, NOW).status).toBe(
-        "refused",
-      );
+      expect(
+        (await requestRefund({ email, orderId, reason: "x" }, NOW)).status,
+      ).toBe("refused");
     }
   });
 });
 
 describe("getOrders", () => {
-  it("finds a customer's orders by email, with any refund", () => {
-    const result = getOrders({ email: "casey@example.com" });
+  it("finds a customer's orders by email, with any refund", async () => {
+    const result = await getOrders({ email: "casey@example.com" });
     expect(result.status).toBe("found");
     if (result.status !== "found") return;
     expect(result.orders.map((o) => [o.id, o.refund_status])).toEqual([
@@ -146,52 +146,60 @@ describe("getOrders", () => {
     ]);
   });
 
-  it("finds nothing for an unknown email or order", () => {
-    expect(getOrders({ email: "nobody@example.com" }).status).toBe("not_found");
+  it("finds nothing for an unknown email or order", async () => {
+    expect((await getOrders({ email: "nobody@example.com" })).status).toBe(
+      "not_found",
+    );
     expect(
-      getOrders({ email: "sam@example.com", orderId: "1005" }).status,
+      (await getOrders({ email: "sam@example.com", orderId: "1005" })).status,
     ).toBe("not_found");
   });
 });
 
 describe("decidePendingRefund: the staff decision", () => {
-  it("lets staff approve or reject a pending refund, once", () => {
-    const pending = listRefunds().find((r) => r.status === "pending")!;
-    expect(decidePendingRefund(pending.id, "rejected", NOW)).toEqual({
+  it("lets staff approve or reject a pending refund, once", async () => {
+    const pending = (await listRefunds()).find((r) => r.status === "pending")!;
+    expect(await decidePendingRefund(pending.id, "rejected", NOW)).toEqual({
       ok: true,
     });
-    expect(listRefunds().find((r) => r.id === pending.id)).toMatchObject({
+    expect(
+      (await listRefunds()).find((r) => r.id === pending.id),
+    ).toMatchObject({
       status: "rejected",
       decided_by: "staff",
     });
-    expect(decidePendingRefund(pending.id, "approved", NOW)).toMatchObject({
+    expect(
+      await decidePendingRefund(pending.id, "approved", NOW),
+    ).toMatchObject({
       ok: false,
     });
   });
 });
 
 describe("setAutoRefundLimit: staff change the limit", () => {
-  it("at $0, even a $24 refund waits for a person", () => {
-    expect(setAutoRefundLimit(0)).toEqual({ ok: true, limitUsd: 0 });
+  it("at $0, even a $24 refund waits for a person", async () => {
+    expect(await setAutoRefundLimit(0)).toEqual({ ok: true, limitUsd: 0 });
     expect(
-      requestRefund(
-        { email: "sam@example.com", orderId: "1001", reason: "x" },
-        NOW,
+      (
+        await requestRefund(
+          { email: "sam@example.com", orderId: "1001", reason: "x" },
+          NOW,
+        )
       ).status,
     ).toBe("pending");
   });
 
-  it("refuses a negative, missing or huge limit and keeps $50", () => {
+  it("refuses a negative, missing or huge limit and keeps $50", async () => {
     for (const value of [-1, Number.NaN, 5000]) {
-      expect(setAutoRefundLimit(value).ok).toBe(false);
+      expect((await setAutoRefundLimit(value)).ok).toBe(false);
     }
-    expect(getAutoRefundLimit()).toBe(50);
+    expect(await getAutoRefundLimit()).toBe(50);
   });
 
-  it("reports staff decisions so the chat can tell the customer", () => {
-    const pending = listRefunds().find((r) => r.status === "pending")!;
-    decidePendingRefund(pending.id, "approved", NOW);
-    expect(getRefundStatuses([pending.id])).toEqual([
+  it("reports staff decisions so the chat can tell the customer", async () => {
+    const pending = (await listRefunds()).find((r) => r.status === "pending")!;
+    await decidePendingRefund(pending.id, "approved", NOW);
+    expect(await getRefundStatuses([pending.id])).toEqual([
       expect.objectContaining({ refundId: pending.id, status: "approved" }),
     ]);
   });

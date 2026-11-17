@@ -24,8 +24,9 @@ vi.mock("@/lib/copper/refund-console", async () => {
   const refunds = await import("@/lib/copper/refunds");
   return {
     loadRefundQueue: async () => ({
-      limitUsd: refunds.getAutoRefundLimit(),
-      refunds: refunds.listRefunds(),
+      limitUsd: await refunds.getAutoRefundLimit(),
+      refunds: await refunds.listRefunds(),
+      where: "memory",
     }),
     decideRefund: async (id: string, decision: "approved" | "rejected") =>
       refunds.decidePendingRefund(id, decision),
@@ -58,7 +59,7 @@ describe("Refund Console: the limit", () => {
     await waitFor(() =>
       expect(within(card).getByText(/Auto-refund limit: \$0/)).toBeVisible(),
     );
-    expect(getAutoRefundLimit()).toBe(0);
+    expect(await getAutoRefundLimit()).toBe(0);
   });
 
   it("a negative limit is refused with a message", async () => {
@@ -73,7 +74,7 @@ describe("Refund Console: the limit", () => {
     expect(await within(card).findByRole("status")).toHaveTextContent(
       /\$0 or more/,
     );
-    expect(getAutoRefundLimit()).toBe(50);
+    expect(await getAutoRefundLimit()).toBe(50);
   });
 });
 
@@ -83,7 +84,7 @@ describe("Ask Copper: the customer hears the decision", () => {
     vi.stubEnv("GOOGLE_GENERATIVE_AI_API_KEY", "AIza-test-key");
     // The refund agent asks for a $149 refund, which waits for a person.
     const askCopper = vi.fn().mockImplementation(async () => {
-      const output = requestRefund({
+      const output = await requestRefund({
         email: "sam@example.com",
         orderId: "1002",
         reason: "Scratched",
@@ -117,10 +118,10 @@ describe("Ask Copper: the customer hears the decision", () => {
     await chat.findByText("A team member will review it.");
 
     // Staff approve it on the console.
-    const pending = listRefunds().find(
+    const pending = (await listRefunds()).find(
       (r) => r.order_id === "1002" && r.status === "pending",
     )!;
-    decidePendingRefund(pending.id, "approved");
+    await decidePendingRefund(pending.id, "approved");
     await vi.advanceTimersByTimeAsync(6000);
 
     const notice = await chat.findByTestId("refund-notice");

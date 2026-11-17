@@ -1,84 +1,30 @@
-// Module 4: orders and refunds, and the business rules for refunds.
+// Module 4: the business rules for refunds, and what the refund agent's tools
+// and the Refund Console call.
 // The rules live here, in code, not in the refund agent's prompt: the model
 // can ask for a refund, but only this file decides whether it's approved
 // automatically, waits for a person, or is refused. No message can change that.
-//
-// The data is kept in memory, seeded from data/orders.json (made-up orders),
-// so the demo works with no database. This is the only file that knows where
-// orders and refunds are kept, so moving them to Supabase later means changing
-// only the store below.
-import seed from "@/lib/copper/data/orders.json";
+// Where the data is kept (Supabase, or memory) is lib/copper/refund-store.ts.
+import { randomUUID } from "node:crypto";
+import {
+  type Order,
+  type OrderKind,
+  type Refund,
+  type RefundStatus,
+  refundStore,
+} from "@/lib/copper/refund-store";
 
-export type OrderKind = "device" | "plus_monthly" | "plus_annual";
-
-export type Order = {
-  id: string;
-  customer_email: string;
-  product: string;
-  amount_usd: number;
-  kind: OrderKind;
-  ordered_at: string;
-};
-
-export type RefundStatus = "approved" | "pending" | "rejected";
-
-export type Refund = {
-  id: string;
-  order_id: string;
-  amount_usd: number;
-  reason: string;
-  status: RefundStatus;
-  /** "auto" when the rule approved it, "staff" when a person decided. */
-  decided_by: "auto" | "staff" | null;
-  created_at: string;
-  decided_at: string | null;
-};
-
-type Store = {
-  orders: Order[];
-  refunds: Refund[];
-  settings: { auto_refund_limit_usd: number };
-  nextId: number;
-};
+export {
+  type Order,
+  type OrderKind,
+  type Refund,
+  type RefundStatus,
+  resetRefundStore,
+} from "@/lib/copper/refund-store";
 
 const DAY = 24 * 60 * 60 * 1000;
-const daysAgo = (days: number, now: number) =>
-  new Date(now - days * DAY).toISOString();
 
-/** A fresh copy of the made-up data, with dates counted back from now. */
-export function seedStore(now = Date.now()): Store {
-  return {
-    orders: seed.orders.map(({ days_ago, ...order }) => ({
-      ...order,
-      kind: order.kind as OrderKind,
-      ordered_at: daysAgo(days_ago, now),
-    })),
-    refunds: seed.refunds.map(({ days_ago, ...refund }) => ({
-      ...refund,
-      status: refund.status as RefundStatus,
-      decided_by: refund.decided_by as Refund["decided_by"],
-      created_at: daysAgo(days_ago, now),
-      decided_at: refund.status === "pending" ? null : daysAgo(days_ago, now),
-    })),
-    settings: { ...seed.settings },
-    nextId: seed.refunds.length + 1,
-  };
-}
-
-// Kept on globalThis so the chat and the Refund Console share one copy, even
-// after the dev server reloads a file.
-const holder = globalThis as unknown as { copperRefundStore?: Store };
-function store(): Store {
-  return (holder.copperRefundStore ??= seedStore());
-}
-
-/** Starts over with the made-up data (used by tests). */
-export function resetRefundStore(now = Date.now()) {
-  holder.copperRefundStore = seedStore(now);
-}
-
-export function getAutoRefundLimit(): number {
-  return store().settings.auto_refund_limit_usd;
+export async function getAutoRefundLimit(): Promise<number> {
+  return refundStore().limit();
 }
 
 /** The highest limit staff can set, so a typo can't auto-approve everything. */
@@ -88,9 +34,9 @@ export const MAX_AUTO_REFUND_LIMIT_USD = 1000;
  * Staff change the auto-refund limit on the Refund Console. 0 sends every
  * refund to a person. Only new requests use the new limit.
  */
-export function setAutoRefundLimit(
+export async function setAutoRefundLimit(
   value: number,
-): { ok: true; limitUsd: number } | { ok: false; message: string } {
+): Promise<{ ok: true; limitUsd: number } | { ok: false; message: string }> {
   if (!Number.isFinite(value) || value < 0) {
     return { ok: false, message: "The limit must be a number, $0 or more." };
   }
@@ -101,7 +47,7 @@ export function setAutoRefundLimit(
     };
   }
   const limitUsd = Math.round(value * 100) / 100;
-  store().settings.auto_refund_limit_usd = limitUsd;
+  await refundStore().setLimit(limitUsd);
   return { ok: true, limitUsd };
 }
 
@@ -120,6 +66,9 @@ export type RefundDecision =
   | { allowed: true; status: "approved" | "pending" }
   | { allowed: false; reason: string };
 
+const ALREADY_REFUNDED =
+  "This order already has a refund (approved or waiting for review).";
+
 /** Decides what happens to a refund request. Pure: no data is changed. */
 export function decideRefund(
   order: Order,
@@ -130,11 +79,7 @@ export function decideRefund(
   if (
     existing.some((r) => r.order_id === order.id && r.status !== "rejected")
   ) {
-    return {
-      allowed: false,
-      reason:
-        "This order already has a refund (approved or waiting for review).",
-    };
+    return { allowed: false, reason: ALREADY_REFUNDED };
   }
   const window = REFUND_WINDOW_DAYS[order.kind];
   if (window === null) {
@@ -167,9 +112,13 @@ export function decideRefund(
 const sameEmail = (a: string, b: string) =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
 
-const refundOf = (orderId: string) =>
-  store()
-    .refunds.filter((r) => r.order_id === orderId)
+const digits = (orderId: string) => orderId.replace(/\D/g, "");
+
+/** The newest refund for an order, if it has one. */
+const latestRefund = (refunds: Refund[], orderId: string) =>
+  refunds
+    .filter((r) => r.order_id === orderId)
+    .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .at(-1);
 
 export type OrderSummary = Pick<
@@ -182,15 +131,22 @@ export type OrdersResult =
   | { status: "not_found"; message: string };
 
 /** get_orders: a customer's orders, found by their email (and an order number, if given). */
-export function getOrders(input: {
+export async function getOrders(input: {
   email: string;
   orderId?: string;
-}): OrdersResult {
-  const orders = store().orders.filter(
-    (o) =>
-      sameEmail(o.customer_email, input.email) &&
-      (!input.orderId || o.id === input.orderId.replace(/\D/g, "")),
-  );
+}): Promise<OrdersResult> {
+  const store = refundStore();
+  const [allOrders, refunds] = await Promise.all([
+    store.orders(),
+    store.refunds(),
+  ]);
+  const orders = allOrders
+    .filter(
+      (o) =>
+        sameEmail(o.customer_email, input.email) &&
+        (!input.orderId || o.id === digits(input.orderId)),
+    )
+    .sort((a, b) => a.id.localeCompare(b.id));
   if (orders.length === 0) {
     return {
       status: "not_found",
@@ -206,7 +162,7 @@ export function getOrders(input: {
       amount_usd,
       kind,
       ordered_at,
-      refund_status: refundOf(id)?.status ?? null,
+      refund_status: latestRefund(refunds, id)?.status ?? null,
     })),
   };
 }
@@ -223,13 +179,18 @@ export type RefundRequestResult =
   | { status: "refused"; orderId: string; message: string };
 
 /** request_refund: asks for a refund. The rules above decide the outcome. */
-export function requestRefund(
+export async function requestRefund(
   input: { email: string; orderId: string; reason: string },
   now = Date.now(),
-): RefundRequestResult {
-  const data = store();
-  const orderId = input.orderId.replace(/\D/g, "");
-  const order = data.orders.find(
+): Promise<RefundRequestResult> {
+  const store = refundStore();
+  const orderId = digits(input.orderId);
+  const [orders, refunds, limitUsd] = await Promise.all([
+    store.orders(),
+    store.refunds(),
+    store.limit(),
+  ]);
+  const order = orders.find(
     (o) => o.id === orderId && sameEmail(o.customer_email, input.email),
   );
   if (!order) {
@@ -239,18 +200,13 @@ export function requestRefund(
       message: "No order matches that email and order number.",
     };
   }
-  const decision = decideRefund(
-    order,
-    data.refunds,
-    data.settings.auto_refund_limit_usd,
-    now,
-  );
+  const decision = decideRefund(order, refunds, limitUsd, now);
   if (!decision.allowed) {
     return { status: "refused", orderId, message: decision.reason };
   }
   const at = new Date(now).toISOString();
   const refund: Refund = {
-    id: `r-${data.nextId++}`,
+    id: `r-${randomUUID().slice(0, 8)}`,
     order_id: order.id,
     amount_usd: order.amount_usd,
     reason: input.reason.trim() || "No reason given",
@@ -259,7 +215,11 @@ export function requestRefund(
     created_at: at,
     decided_at: decision.status === "approved" ? at : null,
   };
-  data.refunds.push(refund);
+  // The store refuses a second open refund too, in case two requests for the
+  // same order arrive at the same moment.
+  if (!(await store.addRefund(refund))) {
+    return { status: "refused", orderId, message: ALREADY_REFUNDED };
+  }
   return {
     status: decision.status,
     refundId: refund.id,
@@ -269,7 +229,7 @@ export function requestRefund(
     message:
       decision.status === "approved"
         ? `Refund of $${order.amount_usd} approved. It goes back to the original payment method.`
-        : `Refunds over $${data.settings.auto_refund_limit_usd} need a person to review them. A Copper Crew team member will approve or reject it.`,
+        : `Refunds over $${limitUsd} need a person to review them. A Copper Crew team member will approve or reject it.`,
   };
 }
 
@@ -279,15 +239,19 @@ export type RefundRow = Refund & {
 };
 
 /** Every refund, newest first, with its order's product and customer. */
-export function listRefunds(): RefundRow[] {
-  const data = store();
-  return data.refunds
+export async function listRefunds(): Promise<RefundRow[]> {
+  const store = refundStore();
+  const [orders, refunds] = await Promise.all([
+    store.orders(),
+    store.refunds(),
+  ]);
+  return refunds
     .map((r) => {
-      const order = data.orders.find((o) => o.id === r.order_id)!;
+      const order = orders.find((o) => o.id === r.order_id);
       return {
         ...r,
-        product: order.product,
-        customer_email: order.customer_email,
+        product: order?.product ?? "Unknown order",
+        customer_email: order?.customer_email ?? "",
       };
     })
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -302,8 +266,10 @@ export type RefundUpdate = {
 };
 
 /** The current status of some refunds, so the chat can tell the customer. */
-export function getRefundStatuses(refundIds: string[]): RefundUpdate[] {
-  return listRefunds()
+export async function getRefundStatuses(
+  refundIds: string[],
+): Promise<RefundUpdate[]> {
+  return (await listRefunds())
     .filter((r) => refundIds.includes(r.id))
     .map((r) => ({
       refundId: r.id,
@@ -315,18 +281,20 @@ export function getRefundStatuses(refundIds: string[]): RefundUpdate[] {
 }
 
 /** A staff member approves or rejects a pending refund. */
-export function decidePendingRefund(
+export async function decidePendingRefund(
   refundId: string,
   decision: "approved" | "rejected",
   now = Date.now(),
-): { ok: true } | { ok: false; message: string } {
-  const refund = store().refunds.find((r) => r.id === refundId);
-  if (!refund) return { ok: false, message: "That refund doesn't exist." };
-  if (refund.status !== "pending") {
-    return { ok: false, message: "That refund has already been decided." };
-  }
-  refund.status = decision;
-  refund.decided_by = "staff";
-  refund.decided_at = new Date(now).toISOString();
-  return { ok: true };
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const decided = await refundStore().decidePending(refundId, {
+    status: decision,
+    decided_by: "staff",
+    decided_at: new Date(now).toISOString(),
+  });
+  return decided
+    ? { ok: true }
+    : {
+        ok: false,
+        message: "That refund doesn't exist or has already been decided.",
+      };
 }

@@ -13,12 +13,22 @@ import {
   type RefundUpdate,
   setAutoRefundLimit,
 } from "@/lib/copper/refunds";
+import { refundStore } from "@/lib/copper/refund-store";
 
-export type RefundQueue = { limitUsd: number; refunds: RefundRow[] };
+export type RefundQueue = {
+  limitUsd: number;
+  refunds: RefundRow[];
+  /** Where the data lives: the Supabase tables, or memory (demo). */
+  where: "supabase" | "memory";
+};
 
 /** Every refund and the current auto-refund limit. */
 export async function loadRefundQueue(): Promise<RefundQueue> {
-  return { limitUsd: getAutoRefundLimit(), refunds: listRefunds() };
+  const [limitUsd, refunds] = await Promise.all([
+    getAutoRefundLimit(),
+    listRefunds(),
+  ]);
+  return { limitUsd, refunds, where: refundStore().where };
 }
 
 /** A staff member's decision on a pending refund. */

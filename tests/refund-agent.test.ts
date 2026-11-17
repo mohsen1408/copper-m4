@@ -127,7 +127,7 @@ describe("hand-off", () => {
       "request_refund",
       "transfer_to_copper",
     ]);
-    expect(listRefunds()[0]).toMatchObject({
+    expect((await listRefunds())[0]).toMatchObject({
       order_id: "1001",
       status: "approved",
     });
@@ -158,7 +158,7 @@ describe("hand-off", () => {
       ).progress,
     );
     expect(toolCallsOf(result)[0].output).toMatchObject({ status: "pending" });
-    expect(listRefunds()[0]).toMatchObject({
+    expect((await listRefunds())[0]).toMatchObject({
       order_id: "1002",
       status: "pending",
     });
