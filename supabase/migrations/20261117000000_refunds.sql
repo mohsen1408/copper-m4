@@ -72,7 +72,11 @@ insert into orders (id, customer_email, product, amount_usd, kind, ordered_at) v
   ('1005', 'riley@example.com', 'Copper Notes', 129, 'device', now() - interval '45 days'),
   ('1006', 'riley@example.com', 'Copper Plus, monthly', 7.99, 'plus_monthly', now() - interval '12 days'),
   ('1007', 'casey@example.com', 'Copper Notes charging puck', 24, 'device', now() - interval '2 days'),
-  ('1008', 'casey@example.com', 'Copper Notes', 129, 'device', now() - interval '3 days')
+  ('1008', 'casey@example.com', 'Copper Notes', 129, 'device', now() - interval '3 days'),
+  ('1009', 'taylor@example.com', 'Copper Notes charging puck', 24, 'device', now() - interval '4 days'),
+  ('1010', 'taylor@example.com', 'Copper Home', 149, 'device', now() - interval '7 days'),
+  ('1011', 'morgan@example.com', 'Copper Notes', 129, 'device', now() - interval '6 days'),
+  ('1012', 'morgan@example.com', 'Copper Notes charging puck', 24, 'device', now() - interval '1 days')
 on conflict (id) do nothing;
 
 insert into refunds (id, order_id, amount_usd, reason, status, decided_by, created_at, decided_at) values
