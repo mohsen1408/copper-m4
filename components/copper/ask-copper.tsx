@@ -349,8 +349,8 @@ function Answer({
               nodeClass="bg-accent"
               label={
                 step.state === "calling"
-                  ? "Copper is calling a tool"
-                  : "Copper called a tool"
+                  ? `${capitalized(callerOf(step))} is calling a tool`
+                  : `${capitalized(callerOf(step))} called a tool`
               }
             >
               <ToolCard step={step} number={++toolCount} />
@@ -496,7 +496,7 @@ function ToolCard({ step, number }: { step: ToolStep; number: number }) {
       </div>
       <div className="space-y-2 px-3 py-3">
         <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-semibold tracking-widest uppercase">
-          <ArrowRightIcon className="size-3" /> What Copper sent
+          <ArrowRightIcon className="size-3" /> What {callerOf(step)} sent
         </p>
         {step.input === undefined ? (
           <p className="text-muted-foreground text-xs italic">
@@ -692,6 +692,13 @@ function ToolOutput({ name, output }: { name: string; output: any }) {
   );
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Who called a tool, for the labels: "Copper" or "the refund agent". */
+function callerOf(step: ToolStep) {
+  return step.agent === "refund" ? "the refund agent" : "Copper";
+}
+
+const capitalized = (text: string) => text[0].toUpperCase() + text.slice(1);
 
 function RefundPill({ status }: { status: string }) {
   if (status === "approved")

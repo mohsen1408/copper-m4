@@ -93,6 +93,7 @@ export async function askCopper({
             id: part.id,
             name: part.toolName,
             state: "calling",
+            agent: id,
           });
           break;
         case "tool-call": {
@@ -104,6 +105,7 @@ export async function askCopper({
               id: part.toolCallId,
               name: part.toolName,
               state: "calling",
+              agent: id,
               input: part.input,
             });
           break;

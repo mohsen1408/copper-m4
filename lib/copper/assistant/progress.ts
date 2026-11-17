@@ -2,6 +2,9 @@
 // summaries, each tool call (with what went in and what came out), and the
 // reply. The panel draws this as it changes.
 
+/** Who is answering: Copper, or the refund agent Copper handed off to (Module 4). */
+export type AgentId = "copper" | "refund";
+
 export type ThinkingStep = { type: "thinking"; text: string };
 
 export type ToolStep = {
@@ -12,12 +15,11 @@ export type ToolStep = {
   state: "calling" | "done" | "error";
   input?: unknown;
   output?: unknown;
+  /** Which agent called it (Module 4). Copper when missing. */
+  agent?: AgentId;
 };
 
 export type Step = ThinkingStep | ToolStep;
-
-/** Who is answering: Copper, or the refund agent Copper handed off to (Module 4). */
-export type AgentId = "copper" | "refund";
 
 export type Progress = {
   steps: Step[];

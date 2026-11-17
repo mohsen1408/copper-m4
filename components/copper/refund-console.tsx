@@ -132,27 +132,29 @@ export function RefundConsole() {
                       </div>
                     </TableCell>
                     <TableCell>{formatUsd(r.amount_usd)}</TableCell>
-                    <TableCell className="max-w-48 whitespace-normal">
+                    <TableCell className="max-w-40 whitespace-normal">
                       {r.reason}
                     </TableCell>
-                    <TableCell className="space-x-2 text-right">
-                      <Button
-                        size="sm"
-                        disabled={isPending}
-                        onClick={() => decide(r, "approved")}
-                        aria-label={`Approve refund for order ${r.order_id}`}
-                      >
-                        <CheckIcon /> Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={isPending}
-                        onClick={() => decide(r, "rejected")}
-                        aria-label={`Reject refund for order ${r.order_id}`}
-                      >
-                        <XIcon /> Reject
-                      </Button>
+                    <TableCell>
+                      <div className="flex flex-col items-end gap-1.5">
+                        <Button
+                          size="sm"
+                          disabled={isPending}
+                          onClick={() => decide(r, "approved")}
+                          aria-label={`Approve refund for order ${r.order_id}`}
+                        >
+                          <CheckIcon /> Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isPending}
+                          onClick={() => decide(r, "rejected")}
+                          aria-label={`Reject refund for order ${r.order_id}`}
+                        >
+                          <XIcon /> Reject
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
