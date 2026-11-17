@@ -1,0 +1,90 @@
+{
+  "_note": "Made-up orders for the Module 4 refund demo. days_ago is turned into a real date when the app starts, so the return windows always behave the same way.",
+  "settings": { "auto_refund_limit_usd": 50 },
+  "orders": [
+    {
+      "id": "1001",
+      "customer_email": "sam@example.com",
+      "product": "Copper Notes charging puck",
+      "amount_usd": 24,
+      "kind": "device",
+      "days_ago": 6
+    },
+    {
+      "id": "1002",
+      "customer_email": "sam@example.com",
+      "product": "Copper Home",
+      "amount_usd": 149,
+      "kind": "device",
+      "days_ago": 10
+    },
+    {
+      "id": "1003",
+      "customer_email": "jordan@example.com",
+      "product": "Copper Plus, annual",
+      "amount_usd": 79,
+      "kind": "plus_annual",
+      "days_ago": 5
+    },
+    {
+      "id": "1004",
+      "customer_email": "jordan@example.com",
+      "product": "Copper Plus, annual",
+      "amount_usd": 79,
+      "kind": "plus_annual",
+      "days_ago": 40
+    },
+    {
+      "id": "1005",
+      "customer_email": "riley@example.com",
+      "product": "Copper Notes",
+      "amount_usd": 129,
+      "kind": "device",
+      "days_ago": 45
+    },
+    {
+      "id": "1006",
+      "customer_email": "riley@example.com",
+      "product": "Copper Plus, monthly",
+      "amount_usd": 7.99,
+      "kind": "plus_monthly",
+      "days_ago": 12
+    },
+    {
+      "id": "1007",
+      "customer_email": "casey@example.com",
+      "product": "Copper Notes charging puck",
+      "amount_usd": 24,
+      "kind": "device",
+      "days_ago": 2
+    },
+    {
+      "id": "1008",
+      "customer_email": "casey@example.com",
+      "product": "Copper Notes",
+      "amount_usd": 129,
+      "kind": "device",
+      "days_ago": 3
+    }
+  ],
+  "refunds": [
+    {
+      "id": "r-1",
+      "order_id": "1007",
+      "amount_usd": 24,
+      "reason": "Ordered two by mistake",
+      "status": "approved",
+      "decided_by": "auto",
+      "days_ago": 1
+    },
+    {
+      "id": "r-2",
+      "order_id": "1008",
+      "amount_usd": 129,
+      "reason": "Changed my mind, I prefer paper notes",
+      "status": "pending",
+      "decided_by": null,
+      "days_ago": 1
+    }
+  ]
+}

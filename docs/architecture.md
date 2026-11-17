@@ -139,3 +139,30 @@ second agent, and a person approving the large ones.
 |---|---|---|
 | Page | `app/support/page.tsx` | The "Refund Console" title and nothing else yet, linked from the header as Support |
 | Chat panel | `components/copper/ask-copper.tsx` | With the `docked` prop it starts open and the page beside it stays clickable. It is the same single agent and tools as on the home page |
+
+## Module 4: refund agent and Refund Console
+
+**Summary:** Ask Copper is now two agents. Copper hands refund requests to a
+refund agent, which can only look up orders and ask for refunds. Rules in code
+approve refunds of $50 or less straight away; larger ones wait on the Refund
+Console until a staff member approves or rejects them. The plan is in
+[`refund-agent-spec.md`](refund-agent-spec.md).
+
+| Piece | Where | What it does |
+|---|---|---|
+| Agents | `lib/copper/assistant/agents.ts` | Copper (shop tools + `transfer_to_refund_agent`) and the refund agent (`get_orders`, `request_refund`, `transfer_to_copper`), each with its own instructions |
+| Hand-off | `lib/copper/assistant/ask.ts` | A transfer tool call ends that agent's turn (`hasToolCall`) and the other agent answers the same conversation. At most 2 hand-offs per question. `Progress.agent` says who answered, and the panel sends it back so the next question goes to the same agent |
+| Rules and data | `lib/copper/refunds.ts`, `lib/copper/data/orders.json` | `decideRefund` (limit, double refunds, 30-day device window, 14-day annual plan window, no partial-month refunds). Made-up orders, refunds and settings, kept in memory |
+| Refund Console | `app/support/page.tsx`, `components/copper/refund-console.tsx`, `lib/copper/refund-console.ts` | Pending refunds with Approve / Reject, and recent decisions (Automatic or Staff). Reloads every 5 seconds |
+| AI calls | `ai_calls` | Copper logs as module 2 `ask-copper`; the refund agent as module 4 `refund-agent` |
+
+**Decisions:** The limit and the policy windows are enforced in
+`request_refund`'s code, not in the prompt, so "ignore your rules" can't change
+the outcome. The model can never approve a pending refund: only the console's
+server action can. Each agent only gets the tools it needs.
+
+**Risks and open questions:** The data lives in server memory, so it resets on
+restart, and on Vercel the chat and the console may run on different servers
+and not see the same refunds. Moving `orders`, `refunds` and `settings` to
+Supabase fixes that; only `lib/copper/refunds.ts` would change. There is no
+staff sign-in yet, so anyone who opens `/support` can approve refunds.

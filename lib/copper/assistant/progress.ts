@@ -16,10 +16,15 @@ export type ToolStep = {
 
 export type Step = ThinkingStep | ToolStep;
 
+/** Who is answering: Copper, or the refund agent Copper handed off to (Module 4). */
+export type AgentId = "copper" | "refund";
+
 export type Progress = {
   steps: Step[];
   reply: string;
   status: "working" | "done" | "error";
+  /** The agent answering at the end. The next question goes to the same agent. */
+  agent?: AgentId;
 };
 
 /** Every tool call in an answer, in order. */
@@ -40,4 +45,27 @@ export const TOOL_LABELS: Record<string, string> = {
   calculate_cost: "Working out the cost",
   check_availability: "Checking stock",
   search_docs: "Searching the documents",
+  transfer_to_refund_agent: "Handing you to the refund agent",
+  get_orders: "Looking up your orders",
+  request_refund: "Asking for the refund",
+  transfer_to_copper: "Handing you back to Copper",
+};
+
+/** Each agent's name and tools, for the chat panel (Module 4). */
+export const AGENT_INFO: Record<AgentId, { name: string; tools: string[] }> = {
+  copper: {
+    name: "Copper",
+    tools: [
+      "get_products",
+      "get_prices",
+      "calculate_cost",
+      "check_availability",
+      "search_docs",
+      "transfer_to_refund_agent",
+    ],
+  },
+  refund: {
+    name: "Refund agent",
+    tools: ["get_orders", "request_refund", "transfer_to_copper"],
+  },
 };

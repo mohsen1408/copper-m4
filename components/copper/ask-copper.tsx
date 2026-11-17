@@ -30,6 +30,7 @@ import { readLive } from "@/lib/ai/live";
 import { askCopper, type ChatMessage } from "@/lib/copper/assistant/ask";
 import { splitCitations } from "@/lib/copper/assistant/citations";
 import {
+  AGENT_INFO,
   type Progress,
   type ToolStep,
   TOOL_LABELS,
@@ -115,6 +116,8 @@ export function AskCopper({
       const { progress } = await askCopper({
         messages,
         useTools: chat === "tools",
+        // The conversation stays with whoever answered last (Module 4).
+        agent: turns.at(-1)?.progress.agent,
       });
       for await (const update of readLive(progress)) setProgress(update);
     } catch {
@@ -268,6 +271,9 @@ function Answer({
   useTools: boolean;
 }) {
   const { steps, reply, status } = progress;
+  // Module 4: show the tools and name of the agent answering (Copper or the
+  // refund agent it handed off to).
+  const agent = AGENT_INFO[useTools ? (progress.agent ?? "copper") : "copper"];
   const used = new Set(
     steps.filter((s): s is ToolStep => s.type === "tool").map((s) => s.name),
   );
@@ -289,11 +295,13 @@ function Answer({
           node={<WrenchIcon className="size-3" />}
           nodeClass="bg-muted-foreground"
           label={
-            useTools ? "Tools Copper can use" : "Tools given to Copper: none"
+            useTools
+              ? `Tools ${agent.name === "Copper" ? "Copper" : "the refund agent"} can use`
+              : "Tools given to Copper: none"
           }
         >
           <div className="flex flex-wrap gap-1.5">
-            {Object.keys(TOOL_LABELS).map((name) => (
+            {(useTools ? agent.tools : Object.keys(TOOL_LABELS)).map((name) => (
               <span
                 key={name}
                 className={cn(
@@ -376,7 +384,7 @@ function Answer({
 
       {(reply || !working) && (
         <div className="bg-card ml-2 rounded-2xl rounded-tl-sm border p-4 shadow-xs">
-          <p className="text-primary mb-1 text-xs font-bold">Copper</p>
+          <p className="text-primary mb-1 text-xs font-bold">{agent.name}</p>
           {!useTools && (
             <div className="border-chart-3 bg-chart-3/10 mb-3 rounded-lg border p-3 text-xs">
               <p className="flex items-center gap-1.5 font-bold">
@@ -656,6 +664,26 @@ function ToolOutput({ name, output }: { name: string; output: any }) {
         ))}
       </ol>
     );
+  if (name === "request_refund" && output?.status)
+    return (
+      <div className="space-y-1 text-xs">
+        <RefundPill status={output.status} />
+        <p>{output.message}</p>
+      </div>
+    );
+  if (name === "get_orders" && output?.status === "found")
+    return (
+      <div className="text-xs">
+        {output.orders.map((o: any) => (
+          <div key={o.id} className="flex justify-between gap-2 py-0.5">
+            <span>
+              #{o.id} {o.product}
+            </span>
+            <span className="font-medium">{formatUsd(o.amount_usd)}</span>
+          </div>
+        ))}
+      </div>
+    );
   // A tool without its own layout yet: show what came back as plain text.
   return (
     <pre className="max-h-48 overflow-auto text-xs whitespace-pre-wrap">
@@ -664,6 +692,14 @@ function ToolOutput({ name, output }: { name: string; output: any }) {
   );
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+function RefundPill({ status }: { status: string }) {
+  if (status === "approved")
+    return <Pill className="bg-accent text-white">Approved</Pill>;
+  if (status === "pending")
+    return <Pill className="bg-chart-4 text-chart-5">Waiting for review</Pill>;
+  return <Pill className="bg-chart-3 text-white">Refused</Pill>;
+}
 
 function StockPill({
   stock,
