@@ -46,6 +46,7 @@ const when = (iso: string) =>
 export function RefundConsole() {
   const [queue, setQueue] = useState<RefundQueue | null>(null);
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [limitDraft, setLimitDraft] = useState("");
   const [limitMessage, setLimitMessage] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -53,8 +54,11 @@ export function RefundConsole() {
   const reload = useCallback(async () => {
     try {
       setQueue(await loadRefundQueue());
+      setLoadError("");
     } catch {
-      setError("Couldn't load the refunds. Try again.");
+      setLoadError(
+        "Couldn't load the refunds. If you use Supabase, check that the refunds tables exist (supabase/migrations). Then press Refresh or reload the page.",
+      );
     }
   }, []);
 
@@ -95,7 +99,16 @@ export function RefundConsole() {
 
   if (!queue) {
     return (
-      <p className="text-muted-foreground mt-6 text-sm">Loading refunds…</p>
+      <p
+        role={loadError ? "alert" : undefined}
+        className={
+          loadError
+            ? "text-destructive mt-6 text-sm"
+            : "text-muted-foreground mt-6 text-sm"
+        }
+      >
+        {error || "Loading refunds…"}
+      </p>
     );
   }
 
@@ -151,9 +164,9 @@ export function RefundConsole() {
         </CardContent>
       </Card>
 
-      {error && (
+      {(loadError || error) && (
         <p role="alert" className="text-destructive text-sm">
-          {error}
+          {loadError || error}
         </p>
       )}
 
