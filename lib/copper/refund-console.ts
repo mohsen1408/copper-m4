@@ -7,8 +7,11 @@
 import {
   decidePendingRefund,
   getAutoRefundLimit,
+  getRefundStatuses,
   listRefunds,
   type RefundRow,
+  type RefundUpdate,
+  setAutoRefundLimit,
 } from "@/lib/copper/refunds";
 
 export type RefundQueue = { limitUsd: number; refunds: RefundRow[] };
@@ -24,4 +27,16 @@ export async function decideRefund(
   decision: "approved" | "rejected",
 ) {
   return decidePendingRefund(refundId, decision);
+}
+
+/** A staff member changes the auto-refund limit. */
+export async function updateRefundLimit(value: number) {
+  return setAutoRefundLimit(value);
+}
+
+/** The chat asks whether its pending refunds have been decided yet. */
+export async function checkRefunds(
+  refundIds: string[],
+): Promise<RefundUpdate[]> {
+  return getRefundStatuses(refundIds.slice(0, 20));
 }

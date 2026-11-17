@@ -23,10 +23,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatUsd } from "@/lib/copper/catalog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   decideRefund,
   loadRefundQueue,
   type RefundQueue,
+  updateRefundLimit,
 } from "@/lib/copper/refund-console";
 import type { RefundRow } from "@/lib/copper/refunds";
 
@@ -43,6 +46,8 @@ const when = (iso: string) =>
 export function RefundConsole() {
   const [queue, setQueue] = useState<RefundQueue | null>(null);
   const [error, setError] = useState("");
+  const [limitDraft, setLimitDraft] = useState("");
+  const [limitMessage, setLimitMessage] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const reload = useCallback(async () => {
@@ -71,6 +76,23 @@ export function RefundConsole() {
     });
   }
 
+  function saveLimit(event: React.FormEvent) {
+    event.preventDefault();
+    const value = limitDraft.trim() === "" ? NaN : Number(limitDraft);
+    startTransition(async () => {
+      const result = await updateRefundLimit(value);
+      if (result.ok) {
+        setLimitDraft("");
+        setLimitMessage(
+          `Saved. New requests use ${formatUsd(result.limitUsd)}.`,
+        );
+      } else {
+        setLimitMessage(result.message);
+      }
+      await reload();
+    });
+  }
+
   if (!queue) {
     return (
       <p className="text-muted-foreground mt-6 text-sm">Loading refunds…</p>
@@ -91,6 +113,44 @@ export function RefundConsole() {
           <RefreshCwIcon /> Refresh
         </Button>
       </div>
+      <Card data-testid="refund-limit">
+        <CardHeader>
+          <CardTitle>Auto-refund limit: {formatUsd(queue.limitUsd)}</CardTitle>
+          <CardDescription>
+            The rule in code approves refunds at or under this amount. Set it to
+            $0 to send every refund to a person.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={saveLimit} className="flex items-end gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="refund-limit">New limit (USD)</Label>
+              <Input
+                id="refund-limit"
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                value={limitDraft}
+                onChange={(event) => {
+                  setLimitDraft(event.target.value);
+                  setLimitMessage("");
+                }}
+                placeholder={String(queue.limitUsd)}
+                className="w-32"
+              />
+            </div>
+            <Button type="submit" disabled={isPending}>
+              Save limit
+            </Button>
+          </form>
+          {limitMessage && (
+            <p className="text-muted-foreground mt-2 text-sm" role="status">
+              {limitMessage}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}

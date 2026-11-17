@@ -7,10 +7,12 @@ import {
   decideRefund,
   getAutoRefundLimit,
   getOrders,
+  getRefundStatuses,
   listRefunds,
   type Order,
   requestRefund,
   resetRefundStore,
+  setAutoRefundLimit,
 } from "@/lib/copper/refunds";
 
 const NOW = Date.parse("2026-11-17T12:00:00Z");
@@ -165,5 +167,32 @@ describe("decidePendingRefund: the staff decision", () => {
     expect(decidePendingRefund(pending.id, "approved", NOW)).toMatchObject({
       ok: false,
     });
+  });
+});
+
+describe("setAutoRefundLimit: staff change the limit", () => {
+  it("at $0, even a $24 refund waits for a person", () => {
+    expect(setAutoRefundLimit(0)).toEqual({ ok: true, limitUsd: 0 });
+    expect(
+      requestRefund(
+        { email: "sam@example.com", orderId: "1001", reason: "x" },
+        NOW,
+      ).status,
+    ).toBe("pending");
+  });
+
+  it("refuses a negative, missing or huge limit and keeps $50", () => {
+    for (const value of [-1, Number.NaN, 5000]) {
+      expect(setAutoRefundLimit(value).ok).toBe(false);
+    }
+    expect(getAutoRefundLimit()).toBe(50);
+  });
+
+  it("reports staff decisions so the chat can tell the customer", () => {
+    const pending = listRefunds().find((r) => r.status === "pending")!;
+    decidePendingRefund(pending.id, "approved", NOW);
+    expect(getRefundStatuses([pending.id])).toEqual([
+      expect.objectContaining({ refundId: pending.id, status: "approved" }),
+    ]);
   });
 });

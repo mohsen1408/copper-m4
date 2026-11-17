@@ -140,3 +140,5 @@ and the supervisor-only Refund Exceptions Playbook.
   and both must match.
 - **Small orders:** the only products are Copper Home ($149) and Copper Notes ($129),
   so the under-$50 demo orders are a Copper Notes charging puck ($24, made up).
+- **Added after reviewing the class slides:** a limit staff can change on the console
+  (including $0), and an update in the chat when staff approve or reject a pending refund.

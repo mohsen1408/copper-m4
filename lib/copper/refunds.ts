@@ -81,6 +81,30 @@ export function getAutoRefundLimit(): number {
   return store().settings.auto_refund_limit_usd;
 }
 
+/** The highest limit staff can set, so a typo can't auto-approve everything. */
+export const MAX_AUTO_REFUND_LIMIT_USD = 1000;
+
+/**
+ * Staff change the auto-refund limit on the Refund Console. 0 sends every
+ * refund to a person. Only new requests use the new limit.
+ */
+export function setAutoRefundLimit(
+  value: number,
+): { ok: true; limitUsd: number } | { ok: false; message: string } {
+  if (!Number.isFinite(value) || value < 0) {
+    return { ok: false, message: "The limit must be a number, $0 or more." };
+  }
+  if (value > MAX_AUTO_REFUND_LIMIT_USD) {
+    return {
+      ok: false,
+      message: `The limit can't be more than $${MAX_AUTO_REFUND_LIMIT_USD}.`,
+    };
+  }
+  const limitUsd = Math.round(value * 100) / 100;
+  store().settings.auto_refund_limit_usd = limitUsd;
+  return { ok: true, limitUsd };
+}
+
 // ---------------------------------------------------------------------------
 // The rules (Product Bible Section 9, plus the auto-refund limit)
 // ---------------------------------------------------------------------------
@@ -267,6 +291,27 @@ export function listRefunds(): RefundRow[] {
       };
     })
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+export type RefundUpdate = {
+  refundId: string;
+  orderId: string;
+  product: string;
+  amountUsd: number;
+  status: RefundStatus;
+};
+
+/** The current status of some refunds, so the chat can tell the customer. */
+export function getRefundStatuses(refundIds: string[]): RefundUpdate[] {
+  return listRefunds()
+    .filter((r) => refundIds.includes(r.id))
+    .map((r) => ({
+      refundId: r.id,
+      orderId: r.order_id,
+      product: r.product,
+      amountUsd: r.amount_usd,
+      status: r.status,
+    }));
 }
 
 /** A staff member approves or rejects a pending refund. */

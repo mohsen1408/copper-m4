@@ -154,6 +154,8 @@ Console until a staff member approves or rejects them. The plan is in
 | Hand-off | `lib/copper/assistant/ask.ts` | A transfer tool call ends that agent's turn (`hasToolCall`) and the other agent answers the same conversation. At most 2 hand-offs per question. `Progress.agent` says who answered, and the panel sends it back so the next question goes to the same agent |
 | Rules and data | `lib/copper/refunds.ts`, `lib/copper/data/orders.json` | `decideRefund` (limit, double refunds, 30-day device window, 14-day annual plan window, no partial-month refunds). Made-up orders, refunds and settings, kept in memory |
 | Refund Console | `app/support/page.tsx`, `components/copper/refund-console.tsx`, `lib/copper/refund-console.ts` | Pending refunds with Approve / Reject, and recent decisions (Automatic or Staff). Reloads every 5 seconds |
+| Changeable limit | `setAutoRefundLimit` in `lib/copper/refunds.ts`, the limit card on the console | Staff set the limit ($0 to $1000; $0 sends every refund to a person). Only new requests use it |
+| Customer updates | `checkRefunds` in `lib/copper/refund-console.ts`, `components/copper/ask-copper.tsx` | While a refund from the chat is pending, the chat checks every 5 seconds; when staff decide, it shows an "Update" from the refund agent, which becomes part of the conversation |
 | AI calls | `ai_calls` | Copper logs as module 2 `ask-copper`; the refund agent as module 4 `refund-agent` |
 
 **Decisions:** The limit and the policy windows are enforced in

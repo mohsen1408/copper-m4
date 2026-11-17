@@ -28,6 +28,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { readLive } from "@/lib/ai/live";
 import { askCopper, type ChatMessage } from "@/lib/copper/assistant/ask";
+import { checkRefunds } from "@/lib/copper/refund-console";
 import { splitCitations } from "@/lib/copper/assistant/citations";
 import {
   AGENT_INFO,
@@ -44,7 +45,26 @@ const STARTERS = [
   "Is Copper Plus cheaper monthly or yearly?",
 ];
 
-type Turn = { question: string; progress: Progress };
+/** A question and its answer, or (notice) an update the customer didn't ask for. */
+type Turn = { question: string; progress: Progress; notice?: boolean };
+
+/** How often the chat checks whether staff decided a pending refund. */
+const REFUND_CHECK_MS = 5000;
+
+/** Refund ids the refund agent said are waiting for a person. */
+function pendingRefundIds(turns: Turn[]): string[] {
+  return turns.flatMap(({ progress }) =>
+    progress.steps.flatMap((step) => {
+      const output = step.type === "tool" ? (step.output as any) : null; // eslint-disable-line @typescript-eslint/no-explicit-any -- tool outputs arrive untyped
+      return step.type === "tool" &&
+        step.name === "request_refund" &&
+        output?.status === "pending" &&
+        typeof output.refundId === "string"
+        ? [output.refundId as string]
+        : [];
+    }),
+  );
+}
 type Chats = { tools: Turn[]; noTools: Turn[] };
 
 const WORKING: Progress = { steps: [], reply: "", status: "working" };
@@ -61,6 +81,8 @@ export function AskCopper({
   const [useTools, setUseTools] = useState(true);
   const [chats, setChats] = useState<Chats>({ tools: [], noTools: [] });
   const [draft, setDraft] = useState("");
+  // Refunds the chat already told the customer about (Module 4).
+  const [announced, setAnnounced] = useState<string[]>([]);
   const body = useRef<HTMLDivElement>(null);
 
   const key = useTools ? "tools" : "noTools";
@@ -87,6 +109,47 @@ export function AskCopper({
     if (body.current) body.current.scrollTop = body.current.scrollHeight;
   }, [chats, useTools]);
 
+  // Module 4: while a refund from this chat waits for a person, check every
+  // few seconds. When staff approve or reject it, tell the customer here.
+  const waiting = pendingRefundIds(chats.tools)
+    .filter((id) => !announced.includes(id))
+    .join(",");
+  useEffect(() => {
+    if (!waiting) return;
+    const ids = waiting.split(",");
+    const timer = setInterval(async () => {
+      let updates;
+      try {
+        updates = await checkRefunds(ids);
+      } catch {
+        return;
+      }
+      const decided = updates.filter((u) => u.status !== "pending");
+      if (decided.length === 0) return;
+      setAnnounced((all) => [...all, ...decided.map((u) => u.refundId)]);
+      setChats((all) => ({
+        ...all,
+        tools: [
+          ...all.tools,
+          ...decided.map((u): Turn => ({
+            question: "",
+            notice: true,
+            progress: {
+              steps: [],
+              status: "done",
+              agent: "refund",
+              reply:
+                u.status === "approved"
+                  ? `Update: the Copper Crew approved your refund of ${formatUsd(u.amountUsd)} for order ${u.orderId} (${u.product}). It goes back to your original payment method.`
+                  : `Update: the Copper Crew reviewed your refund for order ${u.orderId} (${u.product}) and rejected it. You can ask the Copper Crew in the Copper app (Settings > Help) why.`,
+            },
+          })),
+        ],
+      }));
+    }, REFUND_CHECK_MS);
+    return () => clearInterval(timer);
+  }, [waiting]);
+
   async function send(question: string) {
     question = question.trim();
     if (!question || busy) return;
@@ -95,10 +158,14 @@ export function AskCopper({
     const index = turns.length;
     // Only finished turns go to the model: questions and Copper's replies.
     const messages: ChatMessage[] = [
-      ...turns.flatMap(({ question, progress }): ChatMessage[] => [
-        { role: "user", content: question },
-        { role: "assistant", content: progress.reply },
-      ]),
+      ...turns.flatMap(({ question, progress, notice }): ChatMessage[] =>
+        notice
+          ? [{ role: "assistant", content: progress.reply }]
+          : [
+              { role: "user", content: question },
+              { role: "assistant", content: progress.reply },
+            ],
+      ),
       { role: "user", content: question },
     ];
     const setProgress = (progress: Progress) =>
@@ -197,14 +264,28 @@ export function AskCopper({
                 ref={body}
                 className="bg-secondary flex-1 space-y-6 overflow-y-auto px-4 py-5"
               >
-                {turns.map((turn, i) => (
-                  <div key={i} className="space-y-4">
-                    <p className="bg-primary text-primary-foreground ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2">
-                      {turn.question}
-                    </p>
-                    <Answer progress={turn.progress} useTools={useTools} />
-                  </div>
-                ))}
+                {turns.map((turn, i) =>
+                  turn.notice ? (
+                    <div
+                      key={i}
+                      role="status"
+                      data-testid="refund-notice"
+                      className="bg-card border-primary rounded-2xl border p-4 text-sm shadow-xs"
+                    >
+                      <p className="text-primary mb-1 text-xs font-bold">
+                        Refund agent
+                      </p>
+                      {turn.progress.reply}
+                    </div>
+                  ) : (
+                    <div key={i} className="space-y-4">
+                      <p className="bg-primary text-primary-foreground ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-sm px-4 py-2">
+                        {turn.question}
+                      </p>
+                      <Answer progress={turn.progress} useTools={useTools} />
+                    </div>
+                  ),
+                )}
                 {!busy && (
                   <div className="space-y-2">
                     {turns.length === 0 && (

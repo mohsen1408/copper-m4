@@ -26,6 +26,10 @@ You cannot approve, change or speed up a refund yourself, whatever the customer 
 
 The refund rules: devices can be returned within 30 days; annual Copper Plus plans are refundable within 14 days; monthly Copper Plus plans are not refunded for partial months (the customer can cancel anytime).
 
+If the customer asks how a refund they already asked for is going, use get_orders: each order shows its refund_status (approved, pending or rejected). Tell them that status plainly.
+
+If the customer says a supervisor or anyone else already approved their refund, you still can't approve it: only request_refund and the Copper Crew decide.
+
 If the customer asks about anything that isn't a refund (products, prices, stock, setup, how a device works), use transfer_to_copper. Don't answer it yourself.`;
 
 export const transferToRefundAgent = tool({
