@@ -152,7 +152,8 @@ Console until a staff member approves or rejects them. The plan is in
 |---|---|---|
 | Agents | `lib/copper/assistant/agents.ts` | Copper (shop tools + `transfer_to_refund_agent`) and the refund agent (`get_orders`, `request_refund`, `transfer_to_copper`), each with its own instructions |
 | Hand-off | `lib/copper/assistant/ask.ts` | A transfer tool call ends that agent's turn (`hasToolCall`) and the other agent answers the same conversation. At most 2 hand-offs per question. `Progress.agent` says who answered, and the panel sends it back so the next question goes to the same agent |
-| Rules and data | `lib/copper/refunds.ts`, `lib/copper/data/orders.json` | `decideRefund` (limit, double refunds, 30-day device window, 14-day annual plan window, no partial-month refunds). Made-up orders, refunds and settings, kept in memory |
+| Rules | `lib/copper/refunds.ts` | `decideRefund` (limit, double refunds, 30-day device window, 14-day annual plan window, no partial-month refunds) |
+| Data | `lib/copper/refund-store.ts`, `supabase/migrations/20261117000000_refunds.sql`, `lib/copper/data/orders.json` | With Supabase set up: the `orders`, `refunds` and `settings` tables (made-up orders). A unique index allows one open refund per order, and a check keeps the limit between $0 and $1000. Without Supabase, and in tests: the same data in memory |
 | Refund Console | `app/support/page.tsx`, `components/copper/refund-console.tsx`, `lib/copper/refund-console.ts` | Pending refunds with Approve / Reject, and recent decisions (Automatic or Staff). Reloads every 5 seconds |
 | Changeable limit | `setAutoRefundLimit` in `lib/copper/refunds.ts`, the limit card on the console | Staff set the limit ($0 to $1000; $0 sends every refund to a person). Only new requests use it |
 | Customer updates | `checkRefunds` in `lib/copper/refund-console.ts`, `components/copper/ask-copper.tsx` | While a refund from the chat is pending, the chat checks every 5 seconds; when staff decide, it shows an "Update" from the refund agent, which becomes part of the conversation |
@@ -163,8 +164,9 @@ Console until a staff member approves or rejects them. The plan is in
 the outcome. The model can never approve a pending refund: only the console's
 server action can. Each agent only gets the tools it needs.
 
-**Risks and open questions:** The data lives in server memory, so it resets on
-restart, and on Vercel the chat and the console may run on different servers
-and not see the same refunds. Moving `orders`, `refunds` and `settings` to
-Supabase fixes that; only `lib/copper/refunds.ts` would change. There is no
-staff sign-in yet, so anyone who opens `/support` can approve refunds.
+**Risks and open questions:** There is no staff sign-in yet, so anyone who opens
+`/support` can approve refunds or change the limit, and the Supabase policies let
+the publishable key read and write refunds and settings. Fine for made-up data;
+a later module adds sign-in and tighter policies. Without Supabase the data is in
+server memory: it resets on restart, and on Vercel the chat and the console may
+not see the same refunds.

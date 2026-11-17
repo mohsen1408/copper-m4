@@ -133,8 +133,9 @@ and the supervisor-only Refund Exceptions Playbook.
 
 ## 11. Decisions made while building
 
-- **Data:** kept in memory, seeded from `lib/copper/data/orders.json`, so the demo
-  needs no database. Moving to Supabase later only changes `lib/copper/refunds.ts`.
+- **Data:** the `orders`, `refunds` and `settings` tables in Supabase
+  (`supabase/migrations/20261117000000_refunds.sql`, run once in the SQL Editor).
+  Without Supabase, the same made-up data is kept in memory.
 - **Limit:** $50, read from settings.
 - **Proving the order is theirs:** the customer gives their email and order number,
   and both must match.
