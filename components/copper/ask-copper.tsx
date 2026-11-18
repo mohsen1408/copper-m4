@@ -140,8 +140,8 @@ export function AskCopper({
               agent: "refund",
               reply:
                 u.status === "approved"
-                  ? `Update: the Copper Crew approved your refund of ${formatUsd(u.amountUsd)} for order ${u.orderId} (${u.product}). It goes back to your original payment method.`
-                  : `Update: the Copper Crew reviewed your refund for order ${u.orderId} (${u.product}) and rejected it. You can ask the Copper Crew in the Copper app (Settings > Help) why.`,
+                  ? `Good news! The Copper Crew approved your refund of ${formatUsd(u.amountUsd)} for order ${u.orderId} (${u.product}). It goes back to your original payment method. Thank you for your patience!`
+                  : `We're sorry: the Copper Crew reviewed your refund for order ${u.orderId} (${u.product}) and couldn't approve it this time, so no refund was made. If you have any questions, the Copper Crew is happy to help in the Copper app (Settings > Help).`,
             },
           })),
         ],
