@@ -154,7 +154,13 @@ export async function askCopper({
       progress.reply = progress.reply.trim();
       progress.status = "done";
       if (!progress.reply) progress.reply = SORRY;
-    } catch {
+    } catch (error) {
+      // Says why (rate limit, bad key, model not found) in the server logs.
+      // Only the error's text: never the key.
+      console.error(
+        "[ask-copper] the model call failed:",
+        error instanceof Error ? error.message : String(error),
+      );
       progress.status = "error";
       if (!progress.reply.trim()) progress.reply = SORRY;
     }
